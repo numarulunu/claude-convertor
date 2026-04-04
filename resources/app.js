@@ -1,4 +1,4 @@
-const api = window.api;
+const ipc = window.api;
 
 // State
 let settings = {};
@@ -36,13 +36,13 @@ const dom = {
 // External link handling
 dom.ffmpegLink.addEventListener('click', (e) => {
     e.preventDefault();
-    api.openExternal('https://ffmpeg.org/download.html');
+    ipc.openExternal('https://ffmpeg.org/download.html');
 });
 
 // === Settings ===
 
 async function loadSettings() {
-    settings = await api.invoke('read-settings');
+    settings = await ipc.invoke('read-settings');
     dom.inputPath.textContent = settings.inputFolder || 'No folder selected';
     dom.outputPath.textContent = settings.outputFolder || 'No folder selected';
     dom.resolution.value = String(settings.resolution || 1080);
@@ -72,7 +72,7 @@ async function saveSettings() {
         crf: parseInt(dom.crf.value),
         preset: dom.preset.value,
     };
-    await api.invoke('write-settings', settings);
+    await ipc.invoke('write-settings', settings);
 }
 
 // Setting change handlers
@@ -84,7 +84,7 @@ dom.preset.addEventListener('change', saveSettings);
 
 // Folder pickers
 dom.btnInputFolder.addEventListener('click', async () => {
-    const folder = await api.invoke('pick-folder');
+    const folder = await ipc.invoke('pick-folder');
     if (folder) {
         settings.inputFolder = folder;
         dom.inputPath.textContent = folder;
@@ -94,7 +94,7 @@ dom.btnInputFolder.addEventListener('click', async () => {
 });
 
 dom.btnOutputFolder.addEventListener('click', async () => {
-    const folder = await api.invoke('pick-folder');
+    const folder = await ipc.invoke('pick-folder');
     if (folder) {
         settings.outputFolder = folder;
         dom.outputPath.textContent = folder;
@@ -157,7 +157,7 @@ function statusIcon(status) {
 
 async function scanFiles() {
     if (!settings.inputFolder || !settings.outputFolder) return;
-    const result = await api.invoke('scan-files', {
+    const result = await ipc.invoke('scan-files', {
         inputFolder: settings.inputFolder,
         outputFolder: settings.outputFolder,
     });
@@ -178,7 +178,7 @@ dom.btnRefresh.addEventListener('click', () => {
 
 dom.btnStart.addEventListener('click', async () => {
     if (isRunning) {
-        api.send('stop-encoding');
+        ipc.send('stop-encoding');
         isRunning = false;
         dom.btnStart.textContent = 'Start';
         dom.btnStart.classList.remove('stop');
@@ -196,11 +196,11 @@ dom.btnStart.addEventListener('click', async () => {
     files.forEach(f => { f.status = 'pending'; f.percent = 0; f.resultText = ''; });
     renderFiles();
 
-    await api.invoke('start-encoding', settings);
+    await ipc.invoke('start-encoding', settings);
 });
 
 // Progress events from main process
-api.on('encoding-progress', (data) => {
+ipc.on('encoding-progress', (data) => {
     // Update overall progress
     dom.overallProgress.textContent = `${data.done}/${data.total} files | ${data.percent}% | ETA ${formatTime(data.eta_seconds)}`;
 
@@ -218,7 +218,7 @@ api.on('encoding-progress', (data) => {
     }
 });
 
-api.on('encoding-file-done', (data) => {
+ipc.on('encoding-file-done', (data) => {
     const idx = files.findIndex(f => f.name === data.file);
     if (idx < 0) return;
 
@@ -250,7 +250,7 @@ api.on('encoding-file-done', (data) => {
     }
 });
 
-api.on('encoding-batch-done', (data) => {
+ipc.on('encoding-batch-done', (data) => {
     isRunning = false;
     dom.btnStart.textContent = 'Start';
     dom.btnStart.classList.remove('stop');
@@ -264,7 +264,7 @@ api.on('encoding-batch-done', (data) => {
     dom.overallProgress.textContent = summary;
 });
 
-api.on('encoding-error', (data) => {
+ipc.on('encoding-error', (data) => {
     isRunning = false;
     dom.btnStart.textContent = 'Start';
     dom.btnStart.classList.remove('stop');
@@ -274,7 +274,7 @@ api.on('encoding-error', (data) => {
 // === System detection ===
 
 async function detectSystem() {
-    systemInfo = await api.invoke('detect-system');
+    systemInfo = await ipc.invoke('detect-system');
 
     if (!systemInfo.ffmpeg_found) {
         dom.ffmpegWarning.style.display = 'block';

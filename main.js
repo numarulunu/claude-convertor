@@ -19,6 +19,7 @@ let win = null;
 let tray = null;
 let engineProcess = null;
 
+
 // Single instance
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); return; }
