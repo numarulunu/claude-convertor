@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Video Convertor</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- FFmpeg warning banner (hidden by default) -->
+<div class="ffmpeg-warning" id="ffmpegWarning" style="display:none">
+  FFmpeg is required but not found. Install it from
+  <a href="#" id="ffmpegLink">ffmpeg.org</a>
+  and make sure it's in your PATH.
+</div>
+
+<!-- Settings bar -->
+<div class="settings-bar">
+  <div class="settings-row">
+    <div class="setting">
+      <label>Input</label>
+      <div class="folder-picker">
+        <span class="folder-path" id="inputPath">No folder selected</span>
+        <button id="btnInputFolder">Browse</button>
+      </div>
+    </div>
+    <div class="setting">
+      <label>Output</label>
+      <div class="folder-picker">
+        <span class="folder-path" id="outputPath">No folder selected</span>
+        <button id="btnOutputFolder">Browse</button>
+      </div>
+    </div>
+  </div>
+  <div class="settings-row">
+    <div class="setting">
+      <label>Resolution</label>
+      <select id="resolution">
+        <option value="720">720p</option>
+        <option value="1080" selected>1080p</option>
+        <option value="1440">1440p</option>
+      </select>
+    </div>
+    <div class="setting">
+      <label>Mode</label>
+      <select id="mode">
+        <option value="bitrate" selected>Bitrate</option>
+        <option value="quality">Quality (CRF)</option>
+      </select>
+    </div>
+    <div class="setting" id="bitrateGroup">
+      <label>Bitrate <span class="dim" id="bitrateValue">1200 kbps</span></label>
+      <input type="range" id="bitrate" min="800" max="3000" step="100" value="1200">
+    </div>
+    <div class="setting" id="crfGroup" style="display:none">
+      <label>CRF <span class="dim" id="crfValue">23</span></label>
+      <input type="range" id="crf" min="18" max="28" step="1" value="23">
+    </div>
+    <div class="setting">
+      <label>Preset</label>
+      <select id="preset">
+        <option value="ultrafast">ultrafast</option>
+        <option value="superfast">superfast</option>
+        <option value="veryfast">veryfast</option>
+        <option value="faster">faster</option>
+        <option value="fast">fast</option>
+        <option value="medium" selected>medium</option>
+        <option value="slow">slow</option>
+        <option value="slower">slower</option>
+        <option value="veryslow">veryslow</option>
+      </select>
+    </div>
+    <button class="btn-refresh" id="btnRefresh" title="Rescan files">&#x21bb; Refresh</button>
+  </div>
+</div>
+
+<!-- File queue -->
+<div class="file-queue" id="fileQueue">
+  <div class="empty-state" id="emptyState">Select an input folder and click Refresh</div>
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <div class="system-info" id="systemInfo">Detecting system...</div>
+  <div class="controls">
+    <div class="overall-progress" id="overallProgress"></div>
+    <button class="btn-start" id="btnStart" disabled>Start</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

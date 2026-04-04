@@ -1,0 +1,55 @@
+{
+  "name": "video-convertor",
+  "version": "1.0.0",
+  "description": "Video Convertor — batch video compressor with GPU acceleration",
+  "main": "main.js",
+  "author": "numarulunu",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.videoconvertor.app",
+    "productName": "Video Convertor",
+    "artifactName": "Video-Convertor-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Video Convertor"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "numarulunu",
+      "repo": "claude-convertor"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "resources/**/*"
+    ],
+    "extraFiles": [
+      {
+        "from": "convertor.exe",
+        "to": "convertor.exe"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  }
+}
