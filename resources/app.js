@@ -82,12 +82,12 @@ dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${
 dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); });
 // Preset → auto-adjust bitrate and CRF (faster = needs more bitrate / lower CRF for same quality)
 const PRESET_BITRATES = {
-    ultrafast: 2200, superfast: 2000, veryfast: 1800, faster: 1600,
-    fast: 1400, medium: 1200, slow: 1000, slower: 900, veryslow: 800,
+    ultrafast: 800, superfast: 900, veryfast: 1000, faster: 1100,
+    fast: 1200, medium: 1400, slow: 1600, slower: 2000, veryslow: 2500,
 };
 const PRESET_CRFS = {
-    ultrafast: 20, superfast: 21, veryfast: 22, faster: 22,
-    fast: 23, medium: 23, slow: 24, slower: 25, veryslow: 26,
+    ultrafast: 28, superfast: 27, veryfast: 26, faster: 25,
+    fast: 24, medium: 23, slow: 22, slower: 20, veryslow: 18,
 };
 dom.preset.addEventListener('change', () => {
     const preset = dom.preset.value;
