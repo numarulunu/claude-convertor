@@ -80,7 +80,19 @@ dom.resolution.addEventListener('change', saveSettings);
 dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); });
 dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); });
 dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); });
-dom.preset.addEventListener('change', saveSettings);
+// Preset → auto-adjust bitrate (faster = needs more bitrate for same quality)
+const PRESET_BITRATES = {
+    ultrafast: 2200, superfast: 2000, veryfast: 1800, faster: 1600,
+    fast: 1400, medium: 1200, slow: 1000, slower: 900, veryslow: 800,
+};
+dom.preset.addEventListener('change', () => {
+    const suggested = PRESET_BITRATES[dom.preset.value];
+    if (suggested) {
+        dom.bitrate.value = suggested;
+        dom.bitrateValue.textContent = `${suggested} kbps`;
+    }
+    saveSettings();
+});
 
 // Folder pickers
 dom.btnInputFolder.addEventListener('click', async () => {
