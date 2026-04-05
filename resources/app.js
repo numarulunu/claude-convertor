@@ -387,17 +387,29 @@ dom.btnStart.addEventListener('click', async () => {
 // Progress events from main process
 ipc.on('encoding-progress', (data) => {
     // Update overall progress
-    dom.overallProgress.textContent = `${data.done}/${data.total} files | ${data.percent}% | ETA ${formatTime(data.eta_seconds)}`;
+    dom.overallProgress.textContent = `${data.done}/${data.total} files | ${Math.round(data.percent)}% | ETA ${formatTime(data.eta_seconds)}`;
 
-    // Mark current file as encoding
+    // Mark current file as encoding and update its progress bar
     if (data.file) {
         const idx = files.findIndex(f => f.name === data.file);
-        if (idx >= 0 && files[idx].status === 'pending') {
-            files[idx].status = 'encoding';
-            const statusEl = document.getElementById(`status-${idx}`);
-            if (statusEl) {
-                statusEl.className = 'file-status encoding';
-                statusEl.textContent = '\u25CB';
+        if (idx >= 0) {
+            if (files[idx].status === 'pending') {
+                files[idx].status = 'encoding';
+                const statusEl = document.getElementById(`status-${idx}`);
+                if (statusEl) {
+                    statusEl.className = 'file-status encoding';
+                    statusEl.textContent = '\u25CB';
+                }
+            }
+            // Update per-file progress bar
+            const progressEl = document.getElementById(`progress-${idx}`);
+            if (progressEl) {
+                progressEl.style.width = `${data.file_percent || 0}%`;
+            }
+            // Update per-file result with current progress
+            const resultEl = document.getElementById(`result-${idx}`);
+            if (resultEl && !files[idx].resultText) {
+                resultEl.textContent = `${Math.round(data.file_percent || 0)}% | ${data.system_mode}`;
             }
         }
     }
