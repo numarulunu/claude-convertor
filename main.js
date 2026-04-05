@@ -108,6 +108,11 @@ ipcMain.handle('start-encoding', async (_, settings) => {
         '--codec', settings.codec || 'h264',
     ];
 
+    // If specific files selected, pass them
+    if (settings.selectedFiles && settings.selectedFiles.length > 0) {
+        args.push('--files', settings.selectedFiles.join(','));
+    }
+
     engineProcess = runEngine(args);
 
     const rl = readline.createInterface({ input: engineProcess.stdout });

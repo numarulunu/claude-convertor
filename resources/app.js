@@ -32,6 +32,9 @@ const dom = {
     systemInfo: $('systemInfo'),
     overallProgress: $('overallProgress'),
     btnStart: $('btnStart'),
+    queueHeader: $('queueHeader'),
+    selectAll: $('selectAll'),
+    fileCount: $('fileCount'),
 };
 
 // External link handling
@@ -148,12 +151,19 @@ function formatTime(seconds) {
 function renderFiles() {
     if (files.length === 0) {
         dom.fileQueue.innerHTML = '<div class="empty-state">No pending files found</div>';
+        dom.queueHeader.style.display = 'none';
         dom.btnStart.disabled = true;
         return;
     }
 
+    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+    const selected = files.filter(f => f.selected !== false).length;
+    dom.queueHeader.style.display = 'flex';
+    dom.fileCount.textContent = `${selected}/${files.length} selected | ${formatSize(totalSize)}`;
+
     dom.fileQueue.innerHTML = files.map((f, i) => `
         <div class="file-row" id="file-${i}">
+            <input type="checkbox" class="file-check" id="check-${i}" ${f.selected !== false ? 'checked' : ''} ${f.status !== 'pending' ? 'disabled' : ''}>
             <div class="file-status ${f.status}" id="status-${i}">${statusIcon(f.status)}</div>
             <div class="file-name">${f.name}</div>
             <div class="file-size">${formatSize(f.size)}</div>
@@ -166,7 +176,18 @@ function renderFiles() {
         </div>
     `).join('');
 
-    dom.btnStart.disabled = isRunning ? false : !files.some(f => f.status === 'pending');
+    // Wire up checkbox handlers
+    files.forEach((f, i) => {
+        const cb = document.getElementById(`check-${i}`);
+        if (cb) cb.addEventListener('change', () => { f.selected = cb.checked; updateStartButton(); });
+    });
+
+    updateStartButton();
+}
+
+function updateStartButton() {
+    if (isRunning) { dom.btnStart.disabled = false; return; }
+    dom.btnStart.disabled = !files.some(f => f.status === 'pending' && f.selected !== false);
 }
 
 function statusIcon(status) {
@@ -180,7 +201,14 @@ function statusIcon(status) {
 }
 
 async function scanFiles() {
-    if (!settings.inputFolder || !settings.outputFolder) return;
+    if (!settings.inputFolder) {
+        dom.fileQueue.innerHTML = '<div class="empty-state">Select an Input folder first</div>';
+        return;
+    }
+    if (!settings.outputFolder) {
+        dom.fileQueue.innerHTML = '<div class="empty-state">Select an Output folder first</div>';
+        return;
+    }
     const result = await ipc.invoke('scan-files', {
         inputFolder: settings.inputFolder,
         outputFolder: settings.outputFolder,
@@ -190,12 +218,25 @@ async function scanFiles() {
         status: 'pending',
         percent: 0,
         resultText: '',
+        selected: true,
     }));
     renderFiles();
 }
 
 dom.btnRefresh.addEventListener('click', () => {
     if (!isRunning) scanFiles();
+});
+
+dom.selectAll.addEventListener('change', () => {
+    const checked = dom.selectAll.checked;
+    files.forEach((f, i) => {
+        if (f.status === 'pending') {
+            f.selected = checked;
+            const cb = document.getElementById(`check-${i}`);
+            if (cb) cb.checked = checked;
+        }
+    });
+    updateStartButton();
 });
 
 // === Encoding ===
@@ -216,11 +257,17 @@ dom.btnStart.addEventListener('click', async () => {
     dom.btnStart.classList.add('stop');
     dom.overallProgress.textContent = 'Starting...';
 
-    // Reset file states
-    files.forEach(f => { f.status = 'pending'; f.percent = 0; f.resultText = ''; });
+    // Reset selected file states, mark deselected as skipped
+    const selectedNames = [];
+    files.forEach(f => {
+        if (f.selected !== false) {
+            f.status = 'pending'; f.percent = 0; f.resultText = '';
+            selectedNames.push(f.name);
+        }
+    });
     renderFiles();
 
-    await ipc.invoke('start-encoding', settings);
+    await ipc.invoke('start-encoding', { ...settings, selectedFiles: selectedNames });
 });
 
 // Progress events from main process
