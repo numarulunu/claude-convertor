@@ -82,8 +82,8 @@ async function saveSettings() {
 }
 
 // Setting change handlers
-dom.codec.addEventListener('change', saveSettings);
-dom.resolution.addEventListener('change', saveSettings);
+dom.codec.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
+dom.resolution.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); });
 dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); });
@@ -150,21 +150,44 @@ function formatTime(seconds) {
 }
 
 function estimateOutput(f) {
-    // Estimate output size based on target bitrate, duration, and source bitrate cap
     if (!f.duration || f.duration <= 0) return { size: 0, time: 0 };
 
     const targetBitrate = parseInt(dom.bitrate.value) || 1200; // kbps
     const sourceBitrate = f.bitrate || 0;
-    // Cap at source bitrate (same logic as engine)
-    const effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
+    const targetRes = parseInt(dom.resolution.value) || 1080;
+    const sourceRes = f.height || 1080;
 
-    // Estimated output size = bitrate * duration / 8 (bits to bytes) + ~10% audio overhead
+    // Cap at source bitrate
+    let effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
+
+    // Resolution scaling: downscaling reduces pixel count, which reduces needed bitrate
+    // Bitrate scales roughly with pixel count (height^2 ratio, since width scales proportionally)
+    if (targetRes < sourceRes && sourceRes > 0) {
+        const resScale = (targetRes * targetRes) / (sourceRes * sourceRes);
+        // Source bitrate was for the original resolution — scale it down
+        if (sourceBitrate > 0) {
+            const scaledSourceBitrate = Math.round(sourceBitrate * resScale);
+            effectiveBitrate = Math.min(targetBitrate, scaledSourceBitrate);
+        }
+        // Also cap target bitrate — no point encoding 720p at 2500kbps
+        const maxUsefulBitrate = Math.round(targetBitrate * resScale / Math.min(resScale, 0.5)); // less aggressive than raw scale
+        effectiveBitrate = Math.min(effectiveBitrate, targetBitrate);
+    }
+
+    // H.265 is ~40% more efficient than H.264 at the same quality
+    const codec = dom.codec.value || 'h264';
+    if (codec === 'h265') {
+        effectiveBitrate = Math.round(effectiveBitrate * 0.6);
+    }
+
+    // Estimated output size = bitrate * duration / 8 + ~10% audio/container overhead
     const videoBytes = (effectiveBitrate * 1000 / 8) * f.duration;
-    const estimatedSize = videoBytes * 1.1; // +10% for audio + container overhead
+    const estimatedSize = videoBytes * 1.1;
 
-    // Rough encode time estimate: GPU ~5-10x realtime, CPU ~1-2x realtime
+    // Encode time: GPU ~5-10x realtime, CPU ~1-2x. H.265 ~30% slower than H.264
     const gpuAvailable = systemInfo && systemInfo.gpu;
-    const speedMultiplier = gpuAvailable ? 7 : 1.5; // average
+    let speedMultiplier = gpuAvailable ? 7 : 1.5;
+    if (codec === 'h265') speedMultiplier *= 0.7;
     const estimatedTime = f.duration / speedMultiplier;
 
     return { size: estimatedSize, time: estimatedTime };
