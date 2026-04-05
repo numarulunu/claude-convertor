@@ -386,8 +386,12 @@ dom.btnStart.addEventListener('click', async () => {
 
 // Progress events from main process
 ipc.on('encoding-progress', (data) => {
-    // Update overall progress
-    dom.overallProgress.textContent = `${data.done}/${data.total} files | ${Math.round(data.percent)}% | ETA ${formatTime(data.eta_seconds)}`;
+    // Overall progress bar text
+    let overallText = `${data.done}/${data.total} files | ${Math.round(data.percent)}%`;
+    if (data.eta_seconds > 0) overallText += ` | ETA ${formatTime(data.eta_seconds)}`;
+    if (data.system_mode === 'PAUSED') overallText += ' | PAUSED (system busy)';
+    else if (data.system_mode === 'THROTTLED' || data.system_mode === 'CONSERVATIVE') overallText += ' | Throttled';
+    dom.overallProgress.textContent = overallText;
 
     // Mark current file as encoding and update its progress bar
     if (data.file) {
@@ -406,10 +410,15 @@ ipc.on('encoding-progress', (data) => {
             if (progressEl) {
                 progressEl.style.width = `${data.file_percent || 0}%`;
             }
-            // Update per-file result with current progress
+            // Update per-file status text
             const resultEl = document.getElementById(`result-${idx}`);
             if (resultEl && !files[idx].resultText) {
-                resultEl.textContent = `${Math.round(data.file_percent || 0)}% | ${data.system_mode}`;
+                const pct = Math.round(data.file_percent || 0);
+                let statusText = `${pct}%`;
+                if (data.system_mode === 'PAUSED') statusText += ' (paused)';
+                else if (data.system_mode !== 'FULL SPEED') statusText += ` (${data.system_mode.toLowerCase()})`;
+                if (data.gpu_util > 0) statusText += ` | GPU ${data.gpu_util}%`;
+                resultEl.textContent = statusText;
             }
         }
     }
