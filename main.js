@@ -86,10 +86,13 @@ ipcMain.handle('detect-system', async () => {
 
 ipcMain.handle('scan-files', async (_, { inputFolder, outputFolder }) => {
     try {
-        const raw = await runEngineAsync(['--scan', '--input', inputFolder, '--output', outputFolder]);
+        // Use job file for Unicode path safety
+        const jobFile = path.join(DATA_DIR, 'scan-job.json');
+        fs.writeFileSync(jobFile, JSON.stringify({ input: inputFolder, output: outputFolder }), 'utf-8');
+        const raw = await runEngineAsync(['--scan', '--job', jobFile]);
         return JSON.parse(raw);
     } catch (err) {
-        return { files: [], error: err.message };
+        return { files: [], done: [], error: err.message };
     }
 });
 
