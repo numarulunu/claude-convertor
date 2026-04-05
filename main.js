@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
     mode: 'bitrate',
     crf: 23,
     preset: 'medium',
+    codec: 'h264',
     startWithWindows: false,
 };
 
@@ -104,6 +105,7 @@ ipcMain.handle('start-encoding', async (_, settings) => {
         '--mode', settings.mode,
         '--preset', settings.preset,
         '--crf', String(settings.crf),
+        '--codec', settings.codec || 'h264',
     ];
 
     engineProcess = runEngine(args);

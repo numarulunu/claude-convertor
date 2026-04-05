@@ -16,6 +16,7 @@ const dom = {
     outputPath: $('outputPath'),
     btnInputFolder: $('btnInputFolder'),
     btnOutputFolder: $('btnOutputFolder'),
+    codec: $('codec'),
     resolution: $('resolution'),
     mode: $('mode'),
     bitrateGroup: $('bitrateGroup'),
@@ -52,6 +53,7 @@ async function loadSettings() {
     dom.crf.value = settings.crf || 23;
     dom.crfValue.textContent = String(settings.crf || 23);
     dom.preset.value = settings.preset || 'medium';
+    dom.codec.value = settings.codec || 'h264';
     updateModeVisibility();
 }
 
@@ -71,11 +73,13 @@ async function saveSettings() {
         mode: dom.mode.value,
         crf: parseInt(dom.crf.value),
         preset: dom.preset.value,
+        codec: dom.codec.value,
     };
     await ipc.invoke('write-settings', settings);
 }
 
 // Setting change handlers
+dom.codec.addEventListener('change', saveSettings);
 dom.resolution.addEventListener('change', saveSettings);
 dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); });
 dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); });
@@ -304,10 +308,16 @@ async function detectSystem() {
     }
 
     const gpu = systemInfo.gpu_name || 'No GPU';
-    const encoder = systemInfo.encoder;
     const encoderNote = systemInfo.gpu ? 'GPU' : 'CPU';
-    dom.systemInfo.textContent = `${systemInfo.cpu_cores} cores | ${systemInfo.ram_total_gb} GB RAM | ${gpu} | ${encoder} (${encoderNote})`;
+    const hevc = systemInfo.hevc_supported ? ' | H.265 ready' : '';
+    dom.systemInfo.textContent = `${systemInfo.cpu_cores} cores | ${systemInfo.ram_total_gb} GB RAM | ${gpu} (${encoderNote})${hevc}`;
     dom.btnStart.disabled = files.length === 0;
+
+    // Disable H.265 option if not supported
+    if (!systemInfo.hevc_supported) {
+        const h265opt = dom.codec.querySelector('option[value="h265"]');
+        if (h265opt) { h265opt.disabled = true; h265opt.textContent = 'H.265 (not available)'; }
+    }
 }
 
 // === Init ===
