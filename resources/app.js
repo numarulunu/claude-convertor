@@ -172,21 +172,23 @@ function estimateOutput(f) {
         targetBitrate = parseInt(dom.bitrate.value) || 1200;
     }
 
-    // Cap at source bitrate
-    let effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
-
-    // Resolution scaling: downscaling reduces pixel count, which reduces needed bitrate
-    // Bitrate scales roughly with pixel count (height^2 ratio, since width scales proportionally)
+    // Resolution scaling factor
+    let resScale = 1.0;
     if (targetRes < sourceRes && sourceRes > 0) {
-        const resScale = (targetRes * targetRes) / (sourceRes * sourceRes);
-        // Source bitrate was for the original resolution — scale it down
-        if (sourceBitrate > 0) {
-            const scaledSourceBitrate = Math.round(sourceBitrate * resScale);
-            effectiveBitrate = Math.min(targetBitrate, scaledSourceBitrate);
+        resScale = (targetRes * targetRes) / (sourceRes * sourceRes);
+    }
+
+    let effectiveBitrate;
+    if (mode === 'quality') {
+        // CRF mode: targetBitrate is already CRF-derived estimate at source res.
+        // Scale by resolution directly — no source bitrate cap.
+        effectiveBitrate = Math.round(targetBitrate * resScale);
+    } else {
+        // Bitrate mode: cap at source, then apply resolution scaling
+        effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
+        if (resScale < 1.0 && sourceBitrate > 0) {
+            effectiveBitrate = Math.min(effectiveBitrate, Math.round(sourceBitrate * resScale));
         }
-        // Also cap target bitrate — no point encoding 720p at 2500kbps
-        const maxUsefulBitrate = Math.round(targetBitrate * resScale / Math.min(resScale, 0.5)); // less aggressive than raw scale
-        effectiveBitrate = Math.min(effectiveBitrate, targetBitrate);
     }
 
     // H.265 is ~40% more efficient than H.264 at the same quality
@@ -273,7 +275,7 @@ function renderFiles() {
 function updateEstimates() {
     // Update estimate text in-place without rebuilding DOM
     files.forEach((f, i) => {
-        if (f.resultText) return; // Don't overwrite actual results
+        if (f.resultText) return;
         const est = estimateOutput(f);
         const estSizeStr = est.size > 0 ? formatSize(est.size) : '';
         const reductionStr = est.size > 0 && f.size > 0 ? `${Math.round((1 - est.size / f.size) * 100)}%` : '';
