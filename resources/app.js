@@ -391,35 +391,40 @@ ipc.on('encoding-progress', (data) => {
     if (data.eta_seconds > 0) overallText += ` | ETA ${formatTime(data.eta_seconds)}`;
     if (data.system_mode === 'PAUSED') overallText += ' | PAUSED (system busy)';
     else if (data.system_mode === 'THROTTLED' || data.system_mode === 'CONSERVATIVE') overallText += ' | Throttled';
+    const activeCount = data.active_files ? Object.keys(data.active_files).length : 0;
+    if (activeCount > 1) overallText += ` | ${activeCount} workers`;
     dom.overallProgress.textContent = overallText;
 
-    // Mark current file as encoding and update its progress bar
-    if (data.file) {
-        const idx = files.findIndex(f => f.name === data.file);
-        if (idx >= 0) {
-            if (files[idx].status === 'pending') {
-                files[idx].status = 'encoding';
-                const statusEl = document.getElementById(`status-${idx}`);
-                if (statusEl) {
-                    statusEl.className = 'file-status encoding';
-                    statusEl.textContent = '\u25CB';
-                }
+    // Update ALL active files
+    const activeFiles = data.active_files || {};
+    for (const [fileName, filePct] of Object.entries(activeFiles)) {
+        const idx = files.findIndex(f => f.name === fileName);
+        if (idx < 0) continue;
+
+        // Mark as encoding
+        if (files[idx].status === 'pending') {
+            files[idx].status = 'encoding';
+            const statusEl = document.getElementById(`status-${idx}`);
+            if (statusEl) {
+                statusEl.className = 'file-status encoding';
+                statusEl.textContent = '\u25CB';
             }
-            // Update per-file progress bar
-            const progressEl = document.getElementById(`progress-${idx}`);
-            if (progressEl) {
-                progressEl.style.width = `${data.file_percent || 0}%`;
-            }
-            // Update per-file status text
-            const resultEl = document.getElementById(`result-${idx}`);
-            if (resultEl && !files[idx].resultText) {
-                const pct = Math.round(data.file_percent || 0);
-                let statusText = `${pct}%`;
-                if (data.system_mode === 'PAUSED') statusText += ' (paused)';
-                else if (data.system_mode !== 'FULL SPEED') statusText += ` (${data.system_mode.toLowerCase()})`;
-                if (data.gpu_util > 0) statusText += ` | GPU ${data.gpu_util}%`;
-                resultEl.textContent = statusText;
-            }
+        }
+
+        // Update progress bar
+        const progressEl = document.getElementById(`progress-${idx}`);
+        if (progressEl) {
+            progressEl.style.width = `${filePct}%`;
+        }
+
+        // Update status text
+        const resultEl = document.getElementById(`result-${idx}`);
+        if (resultEl && !files[idx].resultText) {
+            const pct = Math.round(filePct);
+            let statusText = `${pct}%`;
+            if (data.system_mode === 'PAUSED') statusText += ' (paused)';
+            else if (data.system_mode !== 'FULL SPEED') statusText += ` (${data.system_mode.toLowerCase()})`;
+            resultEl.textContent = statusText;
         }
     }
 });
