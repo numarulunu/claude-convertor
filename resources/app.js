@@ -35,6 +35,7 @@ const dom = {
     queueHeader: $('queueHeader'),
     selectAll: $('selectAll'),
     fileCount: $('fileCount'),
+    btnDeleteOriginals: $('btnDeleteOriginals'),
 };
 
 // External link handling
@@ -244,14 +245,26 @@ function renderFiles() {
     }
     dom.fileCount.textContent = summary;
 
-    dom.fileQueue.innerHTML = files.map((f, i) => {
+    // Group files into sections
+    const pending = [];
+    const completed = [];
+    const alreadyDone = [];
+    files.forEach((f, i) => {
+        f._idx = i;
+        if (f.status === 'done' || f.status === 'failed') completed.push(f);
+        else if (f.status === 'already_done') alreadyDone.push(f);
+        else pending.push(f); // pending, encoding
+    });
+
+    function renderRow(f) {
+        const i = f._idx;
         const est = estimateOutput(f);
         const durStr = formatDuration(f.duration);
         const estSizeStr = est.size > 0 ? formatSize(est.size) : '';
         const reductionStr = est.size > 0 && f.size > 0 ? `${Math.round((1 - est.size / f.size) * 100)}%` : '';
         const resultOrEstimate = f.resultText || (estSizeStr ? `\u2192 ~${estSizeStr} (${reductionStr} smaller)` : '');
 
-        const rowClass = f.status === 'already_done' ? 'file-row already_done' : 'file-row';
+        const rowClass = f.status === 'already_done' ? 'file-row already_done' : f.status === 'done' ? 'file-row completed' : 'file-row';
         const cbDisabled = (f.status !== 'pending' && f.status !== 'already_done') ? 'disabled' : '';
 
         return `
@@ -268,14 +281,30 @@ function renderFiles() {
             </div>
             <div class="file-result ${f.status === 'failed' ? 'failed' : ''}" id="result-${i}">${resultOrEstimate}</div>
         </div>`;
-    }).join('');
+    }
+
+    let html = '';
+    if (pending.length > 0) {
+        html += pending.map(renderRow).join('');
+    }
+    if (completed.length > 0) {
+        html += `<div class="section-divider">Completed (${completed.length})</div>`;
+        html += completed.map(renderRow).join('');
+    }
+    if (alreadyDone.length > 0) {
+        html += `<div class="section-divider">Already converted (${alreadyDone.length})</div>`;
+        html += alreadyDone.map(renderRow).join('');
+    }
+    dom.fileQueue.innerHTML = html;
+
+    // Show delete button if any files completed this session
+    dom.btnDeleteOriginals.style.display = completed.length > 0 ? '' : 'none';
 
     // Wire up checkbox handlers
     files.forEach((f, i) => {
         const cb = document.getElementById(`check-${i}`);
         if (cb) cb.addEventListener('change', () => {
             f.selected = cb.checked;
-            // If checking an already-done file, mark it as pending for reconversion
             if (cb.checked && f.status === 'already_done') {
                 f.status = 'pending';
                 const row = document.getElementById(`file-${i}`);
@@ -332,6 +361,32 @@ function updateStartButton() {
     if (isRunning) { dom.btnStart.disabled = false; return; }
     dom.btnStart.disabled = !files.some(f => f.status === 'pending' && f.selected !== false);
 }
+
+// Delete originals button
+dom.btnDeleteOriginals.addEventListener('click', async () => {
+    const completedFiles = files.filter(f => f.status === 'done' && f.path);
+    if (completedFiles.length === 0) return;
+
+    const names = completedFiles.map(f => f.name).join('\n');
+    if (!confirm(`Send ${completedFiles.length} original file(s) to Recycle Bin?\n\n${names}`)) return;
+
+    const paths = completedFiles.map(f => f.path);
+    const result = await ipc.invoke('delete-files', paths);
+
+    if (result.deleted > 0) {
+        // Remove deleted files from the list
+        const deletedPaths = new Set(paths);
+        files = files.filter(f => !deletedPaths.has(f.path) || f.status !== 'done');
+        dom.btnDeleteOriginals.style.display = 'none';
+        renderFiles();
+    }
+
+    if (result.failed && result.failed.length > 0) {
+        dom.overallProgress.textContent = `${result.deleted} deleted, ${result.failed.length} failed`;
+    } else {
+        dom.overallProgress.textContent = `${result.deleted} original(s) sent to Recycle Bin`;
+    }
+});
 
 function statusIcon(status) {
     switch (status) {
@@ -525,6 +580,9 @@ ipc.on('encoding-batch-done', (data) => {
     }
     summary += ` | ${formatTime(data.elapsed_seconds)}`;
     dom.overallProgress.textContent = summary;
+
+    // Re-render to move completed files to their own section
+    renderFiles();
 });
 
 ipc.on('encoding-error', (data) => {

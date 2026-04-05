@@ -161,6 +161,22 @@ ipcMain.on('stop-encoding', () => {
     }
 });
 
+ipcMain.handle('delete-files', async (_, filePaths) => {
+    const deleted = [];
+    const failed = [];
+    for (const fp of filePaths) {
+        try {
+            // Use shell.trashItem to send to Recycle Bin (recoverable)
+            const { shell } = require('electron');
+            await shell.trashItem(fp);
+            deleted.push(fp);
+        } catch (err) {
+            failed.push({ path: fp, error: err.message });
+        }
+    }
+    return { deleted: deleted.length, failed };
+});
+
 ipcMain.handle('pick-folder', async () => {
     const result = await dialog.showOpenDialog(win, {
         properties: ['openDirectory'],

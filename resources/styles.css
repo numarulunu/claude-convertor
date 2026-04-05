@@ -140,7 +140,30 @@ button:hover { background: #333; }
 
 .queue-header .toggle input { accent-color: #4fc3f7; }
 
-.file-count { font-size: 12px; color: #555; }
+.file-count { font-size: 12px; color: #555; flex: 1; }
+
+.btn-delete {
+    background: #2a1a1a;
+    color: #ef5350;
+    border: 1px solid #4a2a2a;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.btn-delete:hover { background: #3a2020; }
+
+.section-divider {
+    padding: 6px 0;
+    margin-top: 8px;
+    border-top: 1px solid #2a2a2a;
+    font-size: 11px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 
 /* File checkboxes */
 .file-check {
@@ -181,6 +204,7 @@ button:hover { background: #333; }
 .file-status.encoding { color: #4fc3f7; }
 .file-status.done { color: #66bb6a; }
 .file-status.already_done { color: #555; }
+.file-status.completed { color: #66bb6a; }
 .file-status.failed { color: #ef5350; }
 
 .file-row.already_done {

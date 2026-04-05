@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('api', {
         if (allowed.includes(channel)) ipcRenderer.send(channel, data);
     },
     invoke: (channel, data) => {
-        const allowed = ['detect-system', 'scan-files', 'start-encoding', 'pick-folder', 'read-settings', 'write-settings'];
+        const allowed = ['detect-system', 'scan-files', 'start-encoding', 'pick-folder', 'read-settings', 'write-settings', 'delete-files'];
         if (allowed.includes(channel)) return ipcRenderer.invoke(channel, data);
     },
     on: (channel, callback) => {
