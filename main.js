@@ -96,24 +96,21 @@ ipcMain.handle('scan-files', async (_, { inputFolder, outputFolder }) => {
 ipcMain.handle('start-encoding', async (_, settings) => {
     if (engineProcess) return { error: 'Already running' };
 
-    const args = [
-        '--run',
-        '--input', settings.inputFolder,
-        '--output', settings.outputFolder,
-        '--resolution', String(settings.resolution),
-        '--bitrate', String(settings.bitrate),
-        '--mode', settings.mode,
-        '--preset', settings.preset,
-        '--crf', String(settings.crf),
-        '--codec', settings.codec || 'h264',
-    ];
+    // Write settings to a temp JSON file to avoid Unicode path issues in CLI args
+    const jobFile = path.join(DATA_DIR, 'current-job.json');
+    fs.writeFileSync(jobFile, JSON.stringify({
+        input: settings.inputFolder,
+        output: settings.outputFolder,
+        resolution: settings.resolution,
+        bitrate: settings.bitrate,
+        mode: settings.mode,
+        preset: settings.preset,
+        crf: settings.crf,
+        codec: settings.codec || 'h264',
+        files: settings.selectedFiles || [],
+    }, null, 2), 'utf-8');
 
-    // If specific files selected, pass them
-    if (settings.selectedFiles && settings.selectedFiles.length > 0) {
-        args.push('--files', settings.selectedFiles.join(','));
-    }
-
-    engineProcess = runEngine(args);
+    engineProcess = runEngine(['--run', '--job', jobFile]);
 
     let lineCount = 0;
 
@@ -152,7 +149,11 @@ ipcMain.handle('start-encoding', async (_, settings) => {
 
 ipcMain.on('stop-encoding', () => {
     if (engineProcess) {
-        engineProcess.kill('SIGTERM');
+        try {
+            // On Windows, kill the entire process tree (convertor.exe + ffmpeg children)
+            const { execSync } = require('child_process');
+            execSync(`taskkill /PID ${engineProcess.pid} /T /F`, { windowsHide: true, stdio: 'ignore' });
+        } catch {}
         engineProcess = null;
     }
 });
@@ -277,7 +278,10 @@ app.on('window-all-closed', (e) => e.preventDefault());
 
 app.on('before-quit', () => {
     if (engineProcess) {
-        engineProcess.kill('SIGTERM');
+        try {
+            const { execSync } = require('child_process');
+            execSync(`taskkill /PID ${engineProcess.pid} /T /F`, { windowsHide: true, stdio: 'ignore' });
+        } catch {}
         engineProcess = null;
     }
 });

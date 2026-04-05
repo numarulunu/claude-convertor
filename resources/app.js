@@ -381,7 +381,13 @@ dom.btnStart.addEventListener('click', async () => {
     });
     renderFiles();
 
-    await ipc.invoke('start-encoding', { ...settings, selectedFiles: selectedNames });
+    const result = await ipc.invoke('start-encoding', { ...settings, selectedFiles: selectedNames });
+    if (result && result.error) {
+        isRunning = false;
+        dom.btnStart.textContent = 'Start';
+        dom.btnStart.classList.remove('stop');
+        dom.overallProgress.textContent = `Error: ${result.error}`;
+    }
 });
 
 // Progress events from main process
