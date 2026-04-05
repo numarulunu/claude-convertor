@@ -82,11 +82,11 @@ async function saveSettings() {
 }
 
 // Setting change handlers
-dom.codec.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.resolution.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
+dom.codec.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) updateEstimates(); });
+dom.resolution.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) updateEstimates(); });
+dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); if (files.length > 0 && !isRunning) updateEstimates(); });
+dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); if (files.length > 0 && !isRunning) updateEstimates(); });
+dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); if (files.length > 0 && !isRunning) updateEstimates(); });
 // Preset → auto-adjust bitrate and CRF (faster = needs more bitrate / lower CRF for same quality)
 const PRESET_BITRATES = {
     ultrafast: 800, superfast: 900, veryfast: 1000, faster: 1100,
@@ -107,7 +107,7 @@ dom.preset.addEventListener('change', () => {
         dom.crfValue.textContent = String(PRESET_CRFS[preset]);
     }
     saveSettings();
-    if (files.length > 0 && !isRunning) renderFiles();
+    if (files.length > 0 && !isRunning) updateEstimates();
 });
 
 // Folder pickers
@@ -268,6 +268,33 @@ function renderFiles() {
     });
 
     updateStartButton();
+}
+
+function updateEstimates() {
+    // Update estimate text in-place without rebuilding DOM
+    files.forEach((f, i) => {
+        if (f.resultText) return; // Don't overwrite actual results
+        const est = estimateOutput(f);
+        const estSizeStr = est.size > 0 ? formatSize(est.size) : '';
+        const reductionStr = est.size > 0 && f.size > 0 ? `${Math.round((1 - est.size / f.size) * 100)}%` : '';
+        const resultEl = document.getElementById(`result-${i}`);
+        if (resultEl) {
+            resultEl.textContent = estSizeStr ? `\u2192 ~${estSizeStr} (${reductionStr} smaller)` : '';
+        }
+    });
+
+    // Update queue header totals
+    const selectedFiles = files.filter(f => f.selected !== false);
+    const totalSize = selectedFiles.reduce((s, f) => s + (f.size || 0), 0);
+    const totalEstSize = selectedFiles.reduce((s, f) => s + estimateOutput(f).size, 0);
+    const totalEstTime = selectedFiles.reduce((s, f) => s + estimateOutput(f).time, 0);
+    const savings = totalSize > 0 && totalEstSize > 0 ? Math.round((1 - totalEstSize / totalSize) * 100) : 0;
+
+    let summary = `${selectedFiles.length}/${files.length} selected | ${formatSize(totalSize)}`;
+    if (totalEstSize > 0) {
+        summary += ` \u2192 ~${formatSize(totalEstSize)} (${savings}% smaller) | ~${formatTime(totalEstTime)}`;
+    }
+    dom.fileCount.textContent = summary;
 }
 
 function updateStartButton() {
