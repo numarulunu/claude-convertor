@@ -227,14 +227,18 @@ function renderFiles() {
         return;
     }
 
-    const selectedFiles = files.filter(f => f.selected !== false);
+    const pendingFiles = files.filter(f => f.status === 'pending' || f.status === 'encoding');
+    const selectedFiles = pendingFiles.filter(f => f.selected !== false);
+    const doneCount = files.filter(f => f.status === 'already_done').length;
     const totalSize = selectedFiles.reduce((s, f) => s + (f.size || 0), 0);
     const totalEstSize = selectedFiles.reduce((s, f) => s + estimateOutput(f).size, 0);
     const totalEstTime = selectedFiles.reduce((s, f) => s + estimateOutput(f).time, 0);
     const savings = totalSize > 0 && totalEstSize > 0 ? Math.round((1 - totalEstSize / totalSize) * 100) : 0;
 
     dom.queueHeader.style.display = 'flex';
-    let summary = `${selectedFiles.length}/${files.length} selected | ${formatSize(totalSize)}`;
+    let summary = `${selectedFiles.length} to process`;
+    if (doneCount > 0) summary += ` | ${doneCount} already done`;
+    if (totalSize > 0) summary += ` | ${formatSize(totalSize)}`;
     if (totalEstSize > 0) {
         summary += ` \u2192 ~${formatSize(totalEstSize)} (${savings}% smaller) | ~${formatTime(totalEstTime)}`;
     }
@@ -247,9 +251,12 @@ function renderFiles() {
         const reductionStr = est.size > 0 && f.size > 0 ? `${Math.round((1 - est.size / f.size) * 100)}%` : '';
         const resultOrEstimate = f.resultText || (estSizeStr ? `\u2192 ~${estSizeStr} (${reductionStr} smaller)` : '');
 
+        const rowClass = f.status === 'already_done' ? 'file-row already_done' : 'file-row';
+        const cbDisabled = (f.status !== 'pending' && f.status !== 'already_done') ? 'disabled' : '';
+
         return `
-        <div class="file-row" id="file-${i}">
-            <input type="checkbox" class="file-check" id="check-${i}" ${f.selected !== false ? 'checked' : ''} ${f.status !== 'pending' ? 'disabled' : ''}>
+        <div class="${rowClass}" id="file-${i}">
+            <input type="checkbox" class="file-check" id="check-${i}" ${f.selected !== false ? 'checked' : ''} ${cbDisabled}>
             <div class="file-status ${f.status}" id="status-${i}">${statusIcon(f.status)}</div>
             <div class="file-name">${f.name}</div>
             <div class="file-duration dim">${durStr}</div>
@@ -266,7 +273,25 @@ function renderFiles() {
     // Wire up checkbox handlers
     files.forEach((f, i) => {
         const cb = document.getElementById(`check-${i}`);
-        if (cb) cb.addEventListener('change', () => { f.selected = cb.checked; updateStartButton(); });
+        if (cb) cb.addEventListener('change', () => {
+            f.selected = cb.checked;
+            // If checking an already-done file, mark it as pending for reconversion
+            if (cb.checked && f.status === 'already_done') {
+                f.status = 'pending';
+                const row = document.getElementById(`file-${i}`);
+                if (row) row.className = 'file-row';
+                const resultEl = document.getElementById(`result-${i}`);
+                if (resultEl) resultEl.textContent = 'Will reconvert';
+            } else if (!cb.checked && f.resultText && f.resultText.startsWith('Already done')) {
+                f.status = 'already_done';
+                const row = document.getElementById(`file-${i}`);
+                if (row) row.className = 'file-row already_done';
+                const resultEl = document.getElementById(`result-${i}`);
+                if (resultEl) resultEl.textContent = f.resultText;
+            }
+            updateStartButton();
+            updateEstimates();
+        });
     });
 
     updateStartButton();
@@ -286,13 +311,17 @@ function updateEstimates() {
     });
 
     // Update queue header totals
-    const selectedFiles = files.filter(f => f.selected !== false);
+    const pendingFiles = files.filter(f => f.status === 'pending' || f.status === 'encoding');
+    const selectedFiles = pendingFiles.filter(f => f.selected !== false);
+    const doneCount = files.filter(f => f.status === 'already_done').length;
     const totalSize = selectedFiles.reduce((s, f) => s + (f.size || 0), 0);
     const totalEstSize = selectedFiles.reduce((s, f) => s + estimateOutput(f).size, 0);
     const totalEstTime = selectedFiles.reduce((s, f) => s + estimateOutput(f).time, 0);
     const savings = totalSize > 0 && totalEstSize > 0 ? Math.round((1 - totalEstSize / totalSize) * 100) : 0;
 
-    let summary = `${selectedFiles.length}/${files.length} selected | ${formatSize(totalSize)}`;
+    let summary = `${selectedFiles.length} to process`;
+    if (doneCount > 0) summary += ` | ${doneCount} already done`;
+    if (totalSize > 0) summary += ` | ${formatSize(totalSize)}`;
     if (totalEstSize > 0) {
         summary += ` \u2192 ~${formatSize(totalEstSize)} (${savings}% smaller) | ~${formatTime(totalEstTime)}`;
     }
@@ -309,6 +338,7 @@ function statusIcon(status) {
         case 'pending': return '\u2022';
         case 'encoding': return '\u25CB';
         case 'done': return '\u2713';
+        case 'already_done': return '\u2713';
         case 'failed': return '\u2717';
         default: return '\u2022';
     }
@@ -334,6 +364,17 @@ async function scanFiles() {
         resultText: '',
         selected: true,
     }));
+
+    // Add already-done files at the bottom
+    const doneFiles = (result.done || []).map(f => ({
+        ...f,
+        status: 'already_done',
+        percent: 100,
+        resultText: `Already done (${formatSize(f.output_size)})`,
+        selected: false,
+    }));
+    files = [...files, ...doneFiles];
+
     renderFiles();
 }
 

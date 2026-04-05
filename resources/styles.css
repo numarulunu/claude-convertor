@@ -180,7 +180,17 @@ button:hover { background: #333; }
 .file-status.pending { color: #555; }
 .file-status.encoding { color: #4fc3f7; }
 .file-status.done { color: #66bb6a; }
+.file-status.already_done { color: #555; }
 .file-status.failed { color: #ef5350; }
+
+.file-row.already_done {
+    opacity: 0.45;
+}
+
+.file-row.already_done .file-name {
+    text-decoration: line-through;
+    color: #666;
+}
 
 .file-name {
     flex: 1;
