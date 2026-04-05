@@ -115,8 +115,11 @@ ipcMain.handle('start-encoding', async (_, settings) => {
 
     engineProcess = runEngine(args);
 
+    let lineCount = 0;
+
     const rl = readline.createInterface({ input: engineProcess.stdout });
     rl.on('line', (line) => {
+        lineCount++;
         try {
             const data = JSON.parse(line);
             if (data.type === 'progress') {
@@ -129,6 +132,10 @@ ipcMain.handle('start-encoding', async (_, settings) => {
                 win?.webContents.send('encoding-error', data);
             }
         } catch { /* ignore non-JSON lines */ }
+    });
+
+    engineProcess.stderr.on('data', (d) => {
+        console.error('[engine stderr]', d.toString().substring(0, 200));
     });
 
     engineProcess.on('close', () => {

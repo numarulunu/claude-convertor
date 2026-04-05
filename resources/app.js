@@ -421,9 +421,14 @@ ipc.on('encoding-progress', (data) => {
         const resultEl = document.getElementById(`result-${idx}`);
         if (resultEl && !files[idx].resultText) {
             const pct = Math.round(filePct);
-            let statusText = `${pct}%`;
-            if (data.system_mode === 'PAUSED') statusText += ' (paused)';
-            else if (data.system_mode !== 'FULL SPEED') statusText += ` (${data.system_mode.toLowerCase()})`;
+            let statusText;
+            if (pct === 0) {
+                statusText = 'Starting encoder...';
+            } else {
+                statusText = `${pct}%`;
+                if (data.system_mode === 'PAUSED') statusText += ' (paused)';
+                else if (data.system_mode !== 'FULL SPEED') statusText += ` (${data.system_mode.toLowerCase()})`;
+            }
             resultEl.textContent = statusText;
         }
     }
