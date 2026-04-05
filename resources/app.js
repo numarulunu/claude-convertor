@@ -84,9 +84,9 @@ async function saveSettings() {
 // Setting change handlers
 dom.codec.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 dom.resolution.addEventListener('change', () => { saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); });
+dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
-dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); });
+dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 // Preset → auto-adjust bitrate and CRF (faster = needs more bitrate / lower CRF for same quality)
 const PRESET_BITRATES = {
     ultrafast: 800, superfast: 900, veryfast: 1000, faster: 1100,
@@ -152,10 +152,25 @@ function formatTime(seconds) {
 function estimateOutput(f) {
     if (!f.duration || f.duration <= 0) return { size: 0, time: 0 };
 
-    const targetBitrate = parseInt(dom.bitrate.value) || 1200; // kbps
     const sourceBitrate = f.bitrate || 0;
     const targetRes = parseInt(dom.resolution.value) || 1080;
     const sourceRes = f.height || 1080;
+    const mode = dom.mode.value;
+
+    // In CRF mode, estimate bitrate from CRF value
+    // CRF 18 ≈ 90% of source bitrate (near-lossless)
+    // CRF 23 ≈ 50% of source bitrate (balanced)
+    // CRF 28 ≈ 25% of source bitrate (small files)
+    let targetBitrate;
+    if (mode === 'quality') {
+        const crf = parseInt(dom.crf.value) || 23;
+        // Map CRF to a fraction of source bitrate (exponential decay)
+        // CRF 18 → 0.9, CRF 23 → 0.5, CRF 28 → 0.25
+        const crfFraction = Math.pow(0.85, crf - 18);
+        targetBitrate = sourceBitrate > 0 ? Math.round(sourceBitrate * crfFraction) : Math.round(2000 * crfFraction);
+    } else {
+        targetBitrate = parseInt(dom.bitrate.value) || 1200;
+    }
 
     // Cap at source bitrate
     let effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
