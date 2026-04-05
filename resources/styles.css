@@ -190,6 +190,14 @@ button:hover { background: #333; }
     white-space: nowrap;
 }
 
+.file-duration {
+    color: #555;
+    flex-shrink: 0;
+    width: 50px;
+    text-align: right;
+    font-size: 12px;
+}
+
 .file-size {
     color: #888;
     flex-shrink: 0;

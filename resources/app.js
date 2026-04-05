@@ -85,7 +85,7 @@ async function saveSettings() {
 dom.codec.addEventListener('change', saveSettings);
 dom.resolution.addEventListener('change', saveSettings);
 dom.mode.addEventListener('change', () => { updateModeVisibility(); saveSettings(); });
-dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); });
+dom.bitrate.addEventListener('input', () => { dom.bitrateValue.textContent = `${dom.bitrate.value} kbps`; saveSettings(); if (files.length > 0 && !isRunning) renderFiles(); });
 dom.crf.addEventListener('input', () => { dom.crfValue.textContent = dom.crf.value; saveSettings(); });
 // Preset → auto-adjust bitrate and CRF (faster = needs more bitrate / lower CRF for same quality)
 const PRESET_BITRATES = {
@@ -107,6 +107,7 @@ dom.preset.addEventListener('change', () => {
         dom.crfValue.textContent = String(PRESET_CRFS[preset]);
     }
     saveSettings();
+    if (files.length > 0 && !isRunning) renderFiles();
 });
 
 // Folder pickers
@@ -148,6 +149,36 @@ function formatTime(seconds) {
     return `${s}s`;
 }
 
+function estimateOutput(f) {
+    // Estimate output size based on target bitrate, duration, and source bitrate cap
+    if (!f.duration || f.duration <= 0) return { size: 0, time: 0 };
+
+    const targetBitrate = parseInt(dom.bitrate.value) || 1200; // kbps
+    const sourceBitrate = f.bitrate || 0;
+    // Cap at source bitrate (same logic as engine)
+    const effectiveBitrate = sourceBitrate > 0 ? Math.min(targetBitrate, sourceBitrate) : targetBitrate;
+
+    // Estimated output size = bitrate * duration / 8 (bits to bytes) + ~10% audio overhead
+    const videoBytes = (effectiveBitrate * 1000 / 8) * f.duration;
+    const estimatedSize = videoBytes * 1.1; // +10% for audio + container overhead
+
+    // Rough encode time estimate: GPU ~5-10x realtime, CPU ~1-2x realtime
+    const gpuAvailable = systemInfo && systemInfo.gpu;
+    const speedMultiplier = gpuAvailable ? 7 : 1.5; // average
+    const estimatedTime = f.duration / speedMultiplier;
+
+    return { size: estimatedSize, time: estimatedTime };
+}
+
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+}
+
 function renderFiles() {
     if (files.length === 0) {
         dom.fileQueue.innerHTML = '<div class="empty-state">No pending files found</div>';
@@ -156,25 +187,41 @@ function renderFiles() {
         return;
     }
 
-    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
-    const selected = files.filter(f => f.selected !== false).length;
-    dom.queueHeader.style.display = 'flex';
-    dom.fileCount.textContent = `${selected}/${files.length} selected | ${formatSize(totalSize)}`;
+    const selectedFiles = files.filter(f => f.selected !== false);
+    const totalSize = selectedFiles.reduce((s, f) => s + (f.size || 0), 0);
+    const totalEstSize = selectedFiles.reduce((s, f) => s + estimateOutput(f).size, 0);
+    const totalEstTime = selectedFiles.reduce((s, f) => s + estimateOutput(f).time, 0);
+    const savings = totalSize > 0 && totalEstSize > 0 ? Math.round((1 - totalEstSize / totalSize) * 100) : 0;
 
-    dom.fileQueue.innerHTML = files.map((f, i) => `
+    dom.queueHeader.style.display = 'flex';
+    let summary = `${selectedFiles.length}/${files.length} selected | ${formatSize(totalSize)}`;
+    if (totalEstSize > 0) {
+        summary += ` \u2192 ~${formatSize(totalEstSize)} (${savings}% smaller) | ~${formatTime(totalEstTime)}`;
+    }
+    dom.fileCount.textContent = summary;
+
+    dom.fileQueue.innerHTML = files.map((f, i) => {
+        const est = estimateOutput(f);
+        const durStr = formatDuration(f.duration);
+        const estSizeStr = est.size > 0 ? formatSize(est.size) : '';
+        const reductionStr = est.size > 0 && f.size > 0 ? `${Math.round((1 - est.size / f.size) * 100)}%` : '';
+        const resultOrEstimate = f.resultText || (estSizeStr ? `\u2192 ~${estSizeStr} (${reductionStr} smaller)` : '');
+
+        return `
         <div class="file-row" id="file-${i}">
             <input type="checkbox" class="file-check" id="check-${i}" ${f.selected !== false ? 'checked' : ''} ${f.status !== 'pending' ? 'disabled' : ''}>
             <div class="file-status ${f.status}" id="status-${i}">${statusIcon(f.status)}</div>
             <div class="file-name">${f.name}</div>
+            <div class="file-duration dim">${durStr}</div>
             <div class="file-size">${formatSize(f.size)}</div>
             <div class="file-progress">
                 <div class="progress-bar">
                     <div class="progress-fill ${f.status}" id="progress-${i}" style="width:${f.percent || 0}%"></div>
                 </div>
             </div>
-            <div class="file-result ${f.status === 'failed' ? 'failed' : ''}" id="result-${i}">${f.resultText || ''}</div>
-        </div>
-    `).join('');
+            <div class="file-result ${f.status === 'failed' ? 'failed' : ''}" id="result-${i}">${resultOrEstimate}</div>
+        </div>`;
+    }).join('');
 
     // Wire up checkbox handlers
     files.forEach((f, i) => {
